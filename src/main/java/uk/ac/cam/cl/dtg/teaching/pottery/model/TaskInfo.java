@@ -114,9 +114,6 @@ public class TaskInfo {
   @ApiModelProperty("List of steps to run this task")
   private List<Step> steps;
 
-  @ApiModelProperty("Map from variants to execution needed to produce output")
-  private Map<String, Execution> output;
-
   public TaskInfo(String taskId) {
     super();
     this.taskId = taskId;
@@ -134,8 +131,7 @@ public class TaskInfo {
       @JsonProperty("variants") Set<String> variants,
       @JsonProperty("taskTests") Map<String, Map<String, String>> taskTests,
       @JsonProperty("taskCompilation") List<Execution> taskCompilation,
-      @JsonProperty("steps") List<Step> steps,
-      @JsonProperty("output") Map<String, Execution> output
+      @JsonProperty("steps") List<Step> steps
       ) {
     super();
     this.taskId = taskId;
@@ -154,12 +150,6 @@ public class TaskInfo {
     this.steps = steps.stream()
         .map(s -> s.withDefaultContainerRestriction(ContainerRestrictions.DEFAULT_CANDIDATE_RESTRICTIONS))
         .collect(Collectors.toList());
-    this.output = output.entrySet().stream()
-        .collect(Collectors.toMap(
-            e -> e.getKey(),
-            e -> e.getValue()
-                .withDefaultContainerRestriction(ContainerRestrictions.DEFAULT_AUTHOR_RESTRICTIONS)
-        ));
   }
 
   public String getTaskId() {
@@ -208,10 +198,6 @@ public class TaskInfo {
 
   public List<Step> getSteps() {
     return steps;
-  }
-
-  public Map<String, Execution> getOutput() {
-    return output;
   }
 
   public void setTaskId(String taskId) {

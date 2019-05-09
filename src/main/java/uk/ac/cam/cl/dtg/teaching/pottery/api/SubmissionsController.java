@@ -32,6 +32,7 @@ import uk.ac.cam.cl.dtg.teaching.pottery.exceptions.RepoStorageException;
 import uk.ac.cam.cl.dtg.teaching.pottery.exceptions.SubmissionAlreadyScheduledException;
 import uk.ac.cam.cl.dtg.teaching.pottery.exceptions.SubmissionNotFoundException;
 import uk.ac.cam.cl.dtg.teaching.pottery.exceptions.SubmissionStorageException;
+import uk.ac.cam.cl.dtg.teaching.pottery.model.Submission;
 
 @Produces("application/json")
 @Path("/submissions")
@@ -41,12 +42,10 @@ public interface SubmissionsController {
   @Path("/{repoId}/{tag}")
   @ApiOperation(
     value = "Schedules a test by creating a submission",
-    notes = "A submission is created from a tag in the code repository used by the candidate. "
-      + "This method returns either: a JSON object showing the pending status of this submission;"
-      + " or the result from running the task's output script if the task is finished.",
+    notes = "A submission is created from a tag in the code repository used by the candidate. ",
     position = 0
   )
-  String scheduleTest(@PathParam("repoId") String repoId, @PathParam("tag") String tag)
+  Submission scheduleTest(@PathParam("repoId") String repoId, @PathParam("tag") String tag)
       throws RepoStorageException, RepoExpiredException, SubmissionStorageException,
           RepoNotFoundException;
 
@@ -54,14 +53,24 @@ public interface SubmissionsController {
   @Path("/{repoId}/{tag}")
   @ApiOperation(
     value = "Poll the submission information",
-    notes = "Use this call to poll for the results of testing. "
-        + "This method returns either: a JSON object showing the pending status of this submission;"
-        + " or the result from running the task's output script if the task is finished.",
+    notes = "Use this call to poll for the results of testing. ",
     position = 1
   )
-  String getSubmission(@PathParam("repoId") String repoId, @PathParam("tag") String tag)
+  Submission getSubmission(@PathParam("repoId") String repoId, @PathParam("tag") String tag)
       throws SubmissionNotFoundException, RepoStorageException, SubmissionStorageException,
           RepoNotFoundException;
+
+  @GET
+  @Path("/{repoId}/{tag}/output/{step}")
+  @ApiOperation(
+      value = "Poll the output from a particular submission step",
+      position = 2
+  )
+  @Produces("text/plain")
+  String getSubmission(@PathParam("repoId") String repoId, @PathParam("tag") String tag,
+                           @PathParam("step") String step)
+      throws SubmissionNotFoundException, RepoStorageException, SubmissionStorageException,
+      RepoNotFoundException;
 
   Response deleteSubmission(@PathParam("repoId") String repoId, @PathParam("tag") String tag)
       throws RepoStorageException, RepoNotFoundException, SubmissionStorageException,

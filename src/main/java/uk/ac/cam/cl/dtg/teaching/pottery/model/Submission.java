@@ -22,48 +22,44 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.collect.ImmutableSet;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
+import javax.annotation.Nullable;
 
 public class Submission {
 
   public static final String STATUS_PENDING = "PENDING";
-
-  public static final String STATUS_STEPS_RUNNING = "STEPS_RUNNING";
-  public static final String STATUS_STEPS_FAILED = "STEPS_FAILED";
-
-  public static final String STATUS_OUTPUT_RUNNING = "OUTPUT_RUNNING";
-  public static final String STATUS_OUTPUT_FAILED = "OUTPUT_FAILED";
-
+  public static final String STATUS_RUNNING = "RUNNING";
+  public static final String STATUS_FAILED = "FAILED";
   public static final String STATUS_COMPLETE = "COMPLETE";
+
+  public static final String WAIT_STEP_NAME = "wait";
 
   private final String repoId;
   private final String tag;
-  private final String output;
-  private final long waitTimeMs;
   private final String status;
   private final String errorMessage;
   private final Date dateScheduled;
   private final boolean needsRetry;
+  private final List<StepResult> steps;
 
   @JsonCreator
   public Submission(
       @JsonProperty("repoId") String repoId,
       @JsonProperty("tag") String tag,
-      @JsonProperty("output") String output,
-      @JsonProperty("waitTimeMs") long waitTimeMs,
       @JsonProperty("status") String status,
+      @JsonProperty("steps") List<StepResult> steps,
       @JsonProperty("errorMessage") String errorMessage,
       @JsonProperty("dateScheduled") Date dateScheduled,
       @JsonProperty("needsRetry") boolean needsRetry) {
     super();
     this.repoId = repoId;
     this.tag = tag;
-    this.output = output;
-    this.waitTimeMs = waitTimeMs;
     this.status = status;
+    this.steps = steps;
     this.errorMessage = errorMessage;
     this.dateScheduled = dateScheduled;
     this.needsRetry = needsRetry;
@@ -93,12 +89,8 @@ public class Submission {
     return status;
   }
 
-  public String getOutput() {
-    return output;
-  }
-
-  public long getWaitTimeMs() {
-    return waitTimeMs;
+  public List<StepResult> getSteps() {
+    return steps;
   }
 
   public String getErrorMessage() {
@@ -110,11 +102,10 @@ public class Submission {
     private final Date dateScheduled;
     private final String repoId;
     private final String tag;
-    private String output;
     private String status;
-    private List<String> errorMessage = new ArrayList<String>();
+    private final ArrayDeque<StepResult> steps = new ArrayDeque<>();
+    private List<String> errorMessage = new ArrayList<>();
     private boolean needsRetry;
-    private long waitTimeMs;
 
     private Builder(String repoId, String tag) {
       this.repoId = repoId;
@@ -133,14 +124,39 @@ public class Submission {
       return this;
     }
 
+    public String currentStepName() {
+      if (steps.isEmpty()) {
+        return null;
+      }
+      StepResult currentStep = steps.getLast();
+      if (isComplete(currentStep.getStatus())) {
+        return null;
+      }
+      return currentStep.getName();
+    }
+
     public Builder setStarted() {
-      this.waitTimeMs = System.currentTimeMillis() - dateScheduled.getTime();
-      this.output = null;
+      startStep(WAIT_STEP_NAME);
+      return completeStep(WAIT_STEP_NAME, STATUS_COMPLETE,
+          System.currentTimeMillis() - dateScheduled.getTime(), null);
+    }
+
+    public Builder startStep(String name) {
+      if (this.currentStepName() != null) {
+        throw new IllegalArgumentException();
+      }
+      this.steps.add(new StepResult(name, STATUS_RUNNING, 0));
       return this;
     }
 
-    public Builder setOutput(String output) {
-      this.output = output;
+    public Builder completeStep(String name, String status, long msec, @Nullable String output) {
+      if (!this.currentStepName().equals(name)) {
+        throw new IllegalArgumentException();
+      }
+      if (!isComplete(status)) {
+        throw new IllegalArgumentException();
+      }
+      this.steps.offerLast(new StepResult(name, status, msec, output));
       return this;
     }
 
@@ -153,9 +169,8 @@ public class Submission {
       return new Submission(
           repoId,
           tag,
-          output,
-          waitTimeMs,
           status,
+          steps.stream().collect(Collectors.toList()),
           errorMessage.stream().collect(Collectors.joining("\r\n")),
           dateScheduled,
           needsRetry);
@@ -163,10 +178,13 @@ public class Submission {
   }
 
   public boolean isComplete() {
+    return isComplete(status);
+  }
+
+  private static boolean isComplete(String status) {
     return ImmutableSet.of(
             STATUS_COMPLETE,
-            STATUS_STEPS_FAILED,
-            STATUS_OUTPUT_FAILED)
+            STATUS_FAILED)
         .contains(status);
   }
 
@@ -179,11 +197,9 @@ public class Submission {
         + ", tag='"
         + tag
         + '\''
-        + ", output='"
-        + output
+        + ", steps='"
+        + steps
         + '\''
-        + ", waitTimeMs="
-        + waitTimeMs
         + ", dateScheduled="
         + dateScheduled
         + ", errorMessage='"

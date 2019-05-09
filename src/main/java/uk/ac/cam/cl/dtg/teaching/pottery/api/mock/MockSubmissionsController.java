@@ -21,23 +21,36 @@ package uk.ac.cam.cl.dtg.teaching.pottery.api.mock;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.ws.rs.core.Response;
 import uk.ac.cam.cl.dtg.teaching.pottery.api.SubmissionsController;
+import uk.ac.cam.cl.dtg.teaching.pottery.exceptions.RepoNotFoundException;
+import uk.ac.cam.cl.dtg.teaching.pottery.exceptions.RepoStorageException;
+import uk.ac.cam.cl.dtg.teaching.pottery.exceptions.SubmissionNotFoundException;
+import uk.ac.cam.cl.dtg.teaching.pottery.exceptions.SubmissionStorageException;
 import uk.ac.cam.cl.dtg.teaching.pottery.model.Submission;
 
 public class MockSubmissionsController implements SubmissionsController {
 
   @Override
-  public String scheduleTest(String repoId, String tag) {
-    return Submission.builder(repoId, tag).setStatus(Submission.STATUS_PENDING).build().getOutput();
+  public Submission scheduleTest(String repoId, String tag) {
+    return Submission.builder(repoId, tag).setStatus(Submission.STATUS_PENDING).build();
   }
 
   private AtomicInteger counter = new AtomicInteger(0);
 
   @Override
-  public String getSubmission(String repoId, String tag) {
+  public Submission getSubmission(String repoId, String tag) {
     return Submission.builder(repoId, tag)
         .setStatus(Submission.STATUS_COMPLETE)
-        .setOutput(String.format("Polling %d", counter.incrementAndGet()))
-        .build().getOutput();
+        .startStep("output")
+        .completeStep("output", Submission.STATUS_COMPLETE, -1,
+            String.format("Polling %d", counter.incrementAndGet()))
+        .build();
+  }
+
+  @Override
+  public String getSubmission(String repoId, String tag, String step) throws
+      SubmissionNotFoundException, RepoStorageException,
+      SubmissionStorageException, RepoNotFoundException {
+    return String.format("Polling %d", counter.incrementAndGet());
   }
 
   @Override
